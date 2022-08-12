@@ -298,7 +298,6 @@ class Batch implements BatchInterface
         // todo проверили, что если есть limit, то он >1
         // todo проверили, что в фильтре нет поля ID, т.к. мы с ним будем работать
 
-
         $firstResultPage = $this->core->call(
             $apiMethod,
             [
@@ -329,6 +328,12 @@ class Batch implements BatchInterface
         $lastElementIdInFirstPage = null;
         foreach ($firstResultPage->getResponseData()->getResult()->getResultData() as $cnt => $listElement) {
             $elementsCounter++;
+
+            if (!array_key_exists('id', $listElement) && !array_key_exists('ID', $listElement)) {
+            	throw new InvalidArgumentException('Return array must contain ID or id key');
+			}
+
+            $resultItemKey = array_key_exists('id', $listElement) ? 'id' : 'ID';
             $lastElementIdInFirstPage = $listElement['ID'];
             if ($limit !== null && $elementsCounter > $limit) {
                 return;
