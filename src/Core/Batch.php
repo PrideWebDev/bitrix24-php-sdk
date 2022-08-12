@@ -334,7 +334,7 @@ class Batch implements BatchInterface
 			}
 
             $resultItemKey = array_key_exists('id', $listElement) ? 'id' : 'ID';
-            $lastElementIdInFirstPage = $listElement['ID'];
+            $lastElementIdInFirstPage = $listElement[$resultItemKey];
             if ($limit !== null && $elementsCounter > $limit) {
                 return;
             }
