@@ -310,14 +310,15 @@ class Batch implements BatchInterface
         $totalElementsCount = $firstResultPage->getResponseData()->getPagination()->getTotal();
         // filtered elements count less than or equal one result page(50 elements)
         $elementsCounter = 0;
+		$firstResultData = [];
         if ($totalElementsCount <= self::MAX_ELEMENTS_IN_PAGE) {
-        	$resultData = $firstResultPage->getResponseData()->getResult()->getResultData();
+        	$firstResultData = $firstResultPage->getResponseData()->getResult()->getResultData();
         	switch ($apiMethod){
 				case 'tasks.task.list':
-        			$resultData = $resultData['tasks'];
+        			$firstResultData = $firstResultData['tasks'];
         			break;
 			}
-            foreach ($resultData as $cnt => $listElement) {
+            foreach ($firstResultData as $cnt => $listElement) {
                 $elementsCounter++;
                 if ($limit !== null && $elementsCounter > $limit) {
                     return;
@@ -332,7 +333,7 @@ class Batch implements BatchInterface
         // filtered elements count more than one result page(50 elements)
         // return first page
         $lastElementIdInFirstPage = null;
-        foreach ($firstResultPage->getResponseData()->getResult()->getResultData() as $cnt => $listElement) {
+        foreach ($firstResultData as $cnt => $listElement) {
             $elementsCounter++;
 
             if (!array_key_exists('id', $listElement) && !array_key_exists('ID', $listElement)) {
