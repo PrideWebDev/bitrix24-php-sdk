@@ -311,7 +311,13 @@ class Batch implements BatchInterface
         // filtered elements count less than or equal one result page(50 elements)
         $elementsCounter = 0;
         if ($totalElementsCount <= self::MAX_ELEMENTS_IN_PAGE) {
-            foreach ($firstResultPage->getResponseData()->getResult()->getResultData() as $cnt => $listElement) {
+        	$resultData = $firstResultPage->getResponseData()->getResult()->getResultData();
+        	switch ($apiMethod){
+				case 'tasks.task.list':
+        			$resultData = $resultData['tasks'];
+        			break;
+			}
+            foreach ($resultData as $cnt => $listElement) {
                 $elementsCounter++;
                 if ($limit !== null && $elementsCounter > $limit) {
                     return;
