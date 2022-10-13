@@ -479,110 +479,130 @@ class Batch implements BatchInterface
 	 * @throws \Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface
 	 * @throws \Exception
 	 */
-	public function getTraversableListWithCount(
-		string $apiMethod,
-		array $order,
-		array $filter,
-		array $select,
-		?int $limit = null
-	): Generator {
-		$this->logger->debug(
-			'getTraversableListWithCount.start',
-			[
-				'apiMethod' => $apiMethod,
-				'order'     => $order,
-				'filter'    => $filter,
-				'select'    => $select,
-				'limit'     => $limit,
-			]
-		);
-		$this->clearCommands();
+    public function getTraversableListWithCount(
+        string $apiMethod,
+        array $order,
+        array $filter,
+        array $select,
+        ?int $limit = null
+    ): Generator {
+        $this->logger->debug(
+            'getTraversableListWithCount.start',
+            [
+                'apiMethod' => $apiMethod,
+                'order'     => $order,
+                'filter'    => $filter,
+                'select'    => $select,
+                'limit'     => $limit,
+            ]
+        );
+        $this->clearCommands();
+        $isOldPaging = !preg_match('/.*\.list/ui', $apiMethod);
 
-		// get total elements count
-		$firstResult = $this->core->call(
-			$apiMethod,
-			[
-				'order'  => $order,
-				'filter' => $filter,
-				'select' => $select,
-				'start'  => 0,
-			]
-		);
+        // get total elements count
+        $firstResult = $this->core->call(
+            $apiMethod,
+            [
+                'order'  => $order,
+                'filter' => $filter,
+                'select' => $select,
+                'start'  => 0,
+            ]
+        );
 
-		$nextItem = $firstResult->getResponseData()->getPagination()->getNextItem();
-		$total = $firstResult->getResponseData()->getPagination()->getTotal();
+        $nextItem = $firstResult->getResponseData()->getPagination()->getNextItem();
+        $total = $firstResult->getResponseData()->getPagination()->getTotal();
 
-		$this->logger->debug(
-			'getTraversableListWithCount.calculateCommandsRange',
-			[
-				'nextItem'   => $nextItem,
-				'totalItems' => $total,
-			]
-		);
+        $this->logger->debug(
+            'getTraversableListWithCount.calculateCommandsRange',
+            [
+                'nextItem'   => $nextItem,
+                'totalItems' => $total,
+            ]
+        );
 
-		if ($total > self::MAX_ELEMENTS_IN_PAGE && $nextItem !== null) {
-			//more than one page in results -  register list commands
-			for ($startItem = 0; $startItem <= $total; $startItem += $nextItem) {
-				$this->registerCommand(
-					$apiMethod,
-					[
-						'order'  => $order,
-						'filter' => $filter,
-						'select' => $select,
-						'start'  => $startItem,
-					]
-				);
-				if ($limit !== null && $limit < $startItem) {
-					break;
-				}
-			}
-		} else {
-			// one page in results
-			$this->registerCommand(
-				$apiMethod,
-				[
-					'order'  => $order,
-					'filter' => $filter,
-					'select' => $select,
-					'start'  => 0,
-				]
-			);
-		}
+        if ($total > self::MAX_ELEMENTS_IN_PAGE && $nextItem !== null) {
+            //more than one page in results -  register list commands
+            for ($startItem = 0; $startItem <= $total; $startItem += $nextItem) {
 
-		$this->logger->debug(
-			'getTraversableListWithCount.commandsRegistered',
-			[
-				'commandsCount'      => $this->commands->count(),
-				'totalItemsToSelect' => $total,
-			]
-		);
+                if ($isOldPaging) {
+                    $pageNum = ceil($startItem / 50) + 1;
+                    $this->registerCommand(
+                        $apiMethod,
+                        [
+                            'order'  => $order,
+                            'filter' => $filter,
+                            'select' => $select,
+                            'params' => ['NAV_PARAMS' => [
+                                'nPageSize' => 50,
+                                'iNumPage' => $pageNum
+                            ]],
+                        ]
+                    );
+                }
+                else {
+                    $this->registerCommand(
+                        $apiMethod,
+                        [
+                            'order'  => $order,
+                            'filter' => $filter,
+                            'select' => $select,
+                            'start'  => $startItem,
+                        ]
+                    );
+                }
 
-		// iterate batch queries, max:  50 results per 50 elements in each result
-		$elementsCounter = 0;
-		foreach ($this->getTraversable(true) as $queryCnt => $queryResultData) {
-			/**
-			 * @var $queryResultData ResponseData
-			 */
-			$this->logger->debug(
-				'getTraversableListWithCount.batchResultItem',
-				[
-					'batchCommandItemNumber' => $queryCnt,
-					'nextItem'               => $queryResultData->getPagination()->getNextItem(),
-					'durationTime'           => $queryResultData->getTime()->getDuration(),
-				]
-			);
-			// iterate items in batch query result
-			foreach ($queryResultData->getResult()->getResultData() as $cnt => $listElement) {
-				$elementsCounter++;
-				if ($limit !== null && $elementsCounter > $limit) {
-					return;
-				}
-				yield $listElement;
-			}
-		}
+                if ($limit !== null && $limit < $startItem) {
+                    break;
+                }
+            }
+        } else {
+            // one page in results
+            $this->registerCommand(
+                $apiMethod,
+                [
+                    'order'  => $order,
+                    'filter' => $filter,
+                    'select' => $select,
+                    'start'  => 0,
+                ]
+            );
+        }
 
-		$this->logger->debug('getTraversableListWithCount.finish');
-	}
+        $this->logger->debug(
+            'getTraversableListWithCount.commandsRegistered',
+            [
+                'commandsCount'      => $this->commands->count(),
+                'totalItemsToSelect' => $total,
+            ]
+        );
+
+        // iterate batch queries, max:  50 results per 50 elements in each result
+        $elementsCounter = 0;
+        foreach ($this->getTraversable(true) as $queryCnt => $queryResultData) {
+            /**
+             * @var $queryResultData ResponseData
+             */
+            $this->logger->debug(
+                'getTraversableListWithCount.batchResultItem',
+                [
+                    'batchCommandItemNumber' => $queryCnt,
+                    'nextItem'               => $queryResultData->getPagination()->getNextItem(),
+                    'durationTime'           => $queryResultData->getTime()->getDuration(),
+                ]
+            );
+            // iterate items in batch query result
+            foreach ($queryResultData->getResult()->getResultData() as $cnt => $listElement) {
+                $elementsCounter++;
+                if ($limit !== null && $elementsCounter > $limit) {
+                    return;
+                }
+                yield $listElement;
+            }
+        }
+
+        $this->logger->debug('getTraversableListWithCount.finish');
+    }
 
 	/**
 	 * @param bool $isHaltOnError
